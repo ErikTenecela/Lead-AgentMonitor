@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Browser sessions (contain cookies, login data, cached credentials)
+sessions/
+tools/sessions/
+
+# Temp / processing files
+.tmp/
+
+# Google OAuth
+credentials.json
+token.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Database (regenerated at runtime)
+*.db
+*.db-journal
+
+# OS
+.DS_Store
+Thumbs.db
