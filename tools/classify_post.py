@@ -44,10 +44,13 @@ Homeowner request signals (post_type = "request"):
 - "ASAP" / "urgent" / "need this done soon"
 
 Scoring for "request" posts only:
-- 8-10: Clear, specific homeowner request for one of our services
-- 6-7: Likely relevant but slightly vague
-- 4-5: Possibly related but unclear
+- 9-10: Clear request with specifics (size, timeline, material, urgency word like ASAP)
+- 8: Direct request for one of our services, even if brief ("need to do a walkway", "looking for someone to build a patio")
+- 6-7: Likely relevant but ambiguous — could be DIY, asking for advice, or unclear scope
+- 4-5: Possibly related but unclear intent
 - 1-3: Not relevant
+
+Key rule: If the post names one of our services AND uses request language ("need", "looking for", "can anyone", "who does"), score it 8 minimum. Brevity alone is NOT a reason to score below 8.
 
 Our services: chimney repair, masonry, brickwork, tuckpointing, retaining wall, patio,
 walkway, concrete, driveway, junk removal, yard cleanup, tree removal, tree trimming,
