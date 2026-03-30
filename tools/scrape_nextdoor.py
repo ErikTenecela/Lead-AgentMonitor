@@ -19,6 +19,7 @@ import time
 import hashlib
 import re
 import random
+from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -259,6 +260,7 @@ _EXTRACT_POST_JS = """el => {
                 id:           p.id || null,
                 href:         p.detailLink ? p.detailLink.href : null,
                 body:         p.body || p.markdownBody || p.subject || "",
+                isoString:    p.createdAt ? (p.createdAt.asDateTime.isoString || p.createdAt.asDateTime.iso8601 || null) : null,
                 relativeTime: p.createdAt ? p.createdAt.asDateTime.relativeTime : null,
                 commentCount: p.comments ? (p.comments.totalCount || 0) : 0,
                 town:         p.author ? (p.author.neighborhoodName || p.author.cityName || "") : "",
@@ -306,12 +308,26 @@ def scrape_feed(page, feed: dict) -> list[dict]:
                     post_url_for_id = "https://nextdoor.com" + data["href"]
                     post_id = hashlib.md5(post_url_for_id.encode()).hexdigest()[:16]
 
-                post_url    = "https://nextdoor.com" + data["href"]
-                age_min     = _parse_relative_time(data.get("relativeTime") or "")
+                post_url = "https://nextdoor.com" + data["href"]
+
+                # Primary: use absolute ISO timestamp — immune to activity-time drift.
+                # Nextdoor bumps relativeTime when someone comments on an old post,
+                # making week-old posts look fresh. isoString always reflects creation.
+                iso = data.get("isoString")
+                if iso:
+                    try:
+                        created = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                        age_min = int((datetime.now(timezone.utc) - created).total_seconds() / 60)
+                    except Exception:
+                        age_min = None
+                else:
+                    # Fallback to relative time string only when ISO is unavailable
+                    age_min = _parse_relative_time(data.get("relativeTime") or "")
+
                 age_unknown = age_min is None
 
-                # Skip posts we know are too old. Unknown-age posts pass through
-                # but are flagged so the orchestrator can retry them next cycle.
+                # Hard drop anything confirmed older than MAX_AGE_MINUTES.
+                # Unknown-age posts are flagged and retried next cycle.
                 if age_min is not None and age_min > MAX_AGE_MINUTES:
                     continue
 
