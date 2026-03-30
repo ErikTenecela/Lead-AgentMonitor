@@ -138,9 +138,10 @@ def run_cycle():
     skipped = len(new_posts) - len(keyword_hits)
     if skipped:
         print(f"[orchestrator] Skipped {skipped} posts (no relevant keywords) — API call saved")
-        # Mark skipped posts as seen so we don't reprocess them
+        # Only mark as seen if we have a confirmed age — unknown-age posts get
+        # another chance next cycle in case they were missed due to scroll depth.
         for post in new_posts:
-            if post not in keyword_hits:
+            if post not in keyword_hits and not post.get("age_unknown"):
                 post_tracker.mark_seen(post["post_id"], post["platform"],
                                        group_name=post.get("group_name"), town=post.get("town"), url=post.get("url"))
 

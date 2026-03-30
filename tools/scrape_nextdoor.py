@@ -53,8 +53,7 @@ def _with_recent_sort(url: str) -> str:
     return url.rstrip("/") + sep + "sort=recent"
 
 _BASE_FEEDS = [
-    {"url": "https://nextdoor.com/news_feed/",         "section": "neighborhood feed"},
-    {"url": "https://nextdoor.com/for_sale_and_free/", "section": "for sale & free"},
+    {"url": "https://nextdoor.com/news_feed/", "section": "neighborhood feed"},
 ]
 _extra_raw = os.getenv("NEXTDOOR_NEIGHBORHOOD_URLS", "")
 _extra_feeds = [
@@ -278,7 +277,7 @@ def scrape_feed(page, feed: dict) -> list[dict]:
         page.goto(feed["url"], timeout=30000, wait_until="domcontentloaded")
         time.sleep(4)
 
-        for _ in range(4):
+        for _ in range(10):
             page.keyboard.press("End")
             time.sleep(1.5)
 
@@ -287,7 +286,7 @@ def scrape_feed(page, feed: dict) -> list[dict]:
             # Fallback to old selector in case Nextdoor changes again
             cards = page.query_selector_all("div[data-testid='post-card'], article")
 
-        for card in cards[:25]:
+        for card in cards[:50]:
             try:
                 data = card.evaluate(_EXTRACT_POST_JS)
                 if not data or not data.get("href"):
@@ -297,8 +296,22 @@ def scrape_feed(page, feed: dict) -> list[dict]:
                 if not text or len(text) < 20:
                     continue
 
-                post_url  = "https://nextdoor.com" + data["href"]
-                age_min   = _parse_relative_time(data.get("relativeTime") or "")
+                # Use Nextdoor's own post ID when available — stable across scrapes.
+                # Falling back to URL-only hash (no text) prevents duplicate IDs
+                # caused by minor text extraction differences between cycles.
+                native_id = data.get("id")
+                if native_id:
+                    post_id = f"nd_{native_id}"
+                else:
+                    post_url_for_id = "https://nextdoor.com" + data["href"]
+                    post_id = hashlib.md5(post_url_for_id.encode()).hexdigest()[:16]
+
+                post_url    = "https://nextdoor.com" + data["href"]
+                age_min     = _parse_relative_time(data.get("relativeTime") or "")
+                age_unknown = age_min is None
+
+                # Skip posts we know are too old. Unknown-age posts pass through
+                # but are flagged so the orchestrator can retry them next cycle.
                 if age_min is not None and age_min > MAX_AGE_MINUTES:
                     continue
 
@@ -306,7 +319,7 @@ def scrape_feed(page, feed: dict) -> list[dict]:
                 town        = data.get("town") or "Fairfield County"
 
                 posts.append({
-                    "post_id":     _post_id(post_url, text),
+                    "post_id":     post_id,
                     "platform":    "nextdoor",
                     "group_name":  feed["section"],
                     "town":        town,
@@ -314,6 +327,7 @@ def scrape_feed(page, feed: dict) -> list[dict]:
                     "title":       text[:80],
                     "text":        text[:1500],
                     "age_minutes": age_min,
+                    "age_unknown": age_unknown,
                     "reply_count": reply_count,
                 })
 
