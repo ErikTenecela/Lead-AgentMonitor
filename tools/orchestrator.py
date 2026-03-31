@@ -35,7 +35,7 @@ import analytics
 SCORE_THRESHOLD = int(os.getenv("SCORE_THRESHOLD", "8"))
 CT_TZ           = ZoneInfo("America/New_York")
 BUSINESS_START  = dt_time(7, 0)
-BUSINESS_END    = dt_time(20, 0)
+BUSINESS_END    = dt_time(23, 59)
 
 # Keywords that must appear in a post before we spend an API call classifying it
 KEYWORDS = [
