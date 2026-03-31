@@ -6,7 +6,7 @@ Prevents duplicate alerts and enforces daily budget cap.
 
 import sqlite3
 import os
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / ".tmp" / "posts.db"
@@ -48,7 +48,7 @@ def init_db():
             );
         """)
         # Migrate existing DBs — add columns if they don't exist yet
-        for col, dtype in [("summary", "TEXT"), ("urgency", "TEXT")]:
+        for col, dtype in [("summary", "TEXT"), ("urgency", "TEXT"), ("created_at", "TEXT")]:
             try:
                 conn.execute(f"ALTER TABLE seen_posts ADD COLUMN {col} {dtype}")
             except Exception:
@@ -68,15 +68,25 @@ def is_seen(post_id: str, platform: str) -> bool:
 def mark_seen(post_id: str, platform: str, group_name: str = None,
               town: str = None, url: str = None, notified: bool = False,
               score: int = None, work_type: str = None,
-              summary: str = None, urgency: str = None):
-    """Record a post as seen."""
+              summary: str = None, urgency: str = None,
+              age_minutes: int = None):
+    """Record a post as seen. age_minutes is used to back-calculate actual post creation time."""
+    now_utc = datetime.now(timezone.utc)
+    seen_at = now_utc.isoformat()
+
+    # Calculate when the post was actually created for accurate peak hour tracking
+    if age_minutes is not None:
+        created_at = (now_utc - timedelta(minutes=age_minutes)).isoformat()
+    else:
+        created_at = seen_at  # fallback: assume created now
+
     with _get_conn() as conn:
         conn.execute(
             """INSERT OR IGNORE INTO seen_posts
-               (post_id, platform, group_name, town, url, seen_at, notified, score, work_type, summary, urgency)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (post_id, platform, group_name, town, url, seen_at, created_at, notified, score, work_type, summary, urgency)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (post_id, platform, group_name, town, url,
-             datetime.utcnow().isoformat(), int(notified), score, work_type, summary, urgency)
+             seen_at, created_at, int(notified), score, work_type, summary, urgency)
         )
 
 

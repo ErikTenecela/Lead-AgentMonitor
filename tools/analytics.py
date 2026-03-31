@@ -63,12 +63,15 @@ def get_peak_hours() -> dict[int, int]:
     if not conn:
         return counts
     try:
-        # SQLite stores UTC — subtract 4 hours for EDT (UTC-4) or 5 for EST (UTC-5)
-        # Use UTC-4 (EDT) as default; close enough for peak hour detection purposes
+        # Use created_at (actual post creation time) for accurate peak hours.
+        # Falls back to seen_at for older rows that predate created_at column.
+        # Converts UTC to ET (UTC-4 EDT) before grouping by hour.
         rows = conn.execute(
             """
             SELECT
-                CAST(strftime('%H', datetime(seen_at, '-4 hours')) AS INTEGER) as hr,
+                CAST(strftime('%H', datetime(
+                    COALESCE(created_at, seen_at), '-4 hours'
+                )) AS INTEGER) as hr,
                 COUNT(*) as cnt
             FROM seen_posts
             GROUP BY hr

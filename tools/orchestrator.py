@@ -142,7 +142,8 @@ def run_cycle():
         for post in new_posts:
             if post not in keyword_hits and not post.get("age_unknown"):
                 post_tracker.mark_seen(post["post_id"], post["platform"],
-                                       group_name=post.get("group_name"), town=post.get("town"), url=post.get("url"))
+                                       group_name=post.get("group_name"), town=post.get("town"),
+                                       url=post.get("url"), age_minutes=post.get("age_minutes"))
 
     print(f"[orchestrator] Keyword matches to classify: {len(keyword_hits)}")
 
@@ -155,6 +156,7 @@ def run_cycle():
             group_name=post.get("group_name"),
             town=post.get("town"),
             url=post.get("url"),
+            age_minutes=post.get("age_minutes"),
         )
 
         result = classifier.classify(post.get("text", ""), post.get("town", "Unknown"))
