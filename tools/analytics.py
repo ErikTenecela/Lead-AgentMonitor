@@ -55,6 +55,7 @@ def _get_conn():
 def get_peak_hours() -> dict[int, int]:
     """
     Return a dict of {hour (0-23): total post count} across all recorded history.
+    Converts UTC stored timestamps to ET before grouping by hour.
     Hours with no data return 0.
     """
     counts = {h: 0 for h in range(24)}
@@ -62,8 +63,16 @@ def get_peak_hours() -> dict[int, int]:
     if not conn:
         return counts
     try:
+        # SQLite stores UTC — subtract 4 hours for EDT (UTC-4) or 5 for EST (UTC-5)
+        # Use UTC-4 (EDT) as default; close enough for peak hour detection purposes
         rows = conn.execute(
-            "SELECT strftime('%H', seen_at) as hr, COUNT(*) as cnt FROM seen_posts GROUP BY hr"
+            """
+            SELECT
+                CAST(strftime('%H', datetime(seen_at, '-4 hours')) AS INTEGER) as hr,
+                COUNT(*) as cnt
+            FROM seen_posts
+            GROUP BY hr
+            """
         ).fetchall()
         for row in rows:
             counts[int(row["hr"])] = row["cnt"]
@@ -123,6 +132,9 @@ def get_weekly_group_report() -> list[dict]:
         return []
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    # Exclude legacy junk group names from old feeds/scrapers
+    EXCLUDED_GROUPS = ("for sale & free", "Facebook Group", "Unknown")
+
     try:
         rows = conn.execute(
             """
@@ -134,10 +146,12 @@ def get_weekly_group_report() -> list[dict]:
                 COUNT(CASE WHEN score >= 8 THEN 1 END)         AS leads
             FROM seen_posts
             WHERE seen_at >= ?
+              AND group_name IS NOT NULL
+              AND group_name NOT IN (?, ?, ?)
             GROUP BY platform, group_name
             ORDER BY leads DESC, total_posts DESC
             """,
-            (cutoff,)
+            (cutoff, *EXCLUDED_GROUPS)
         ).fetchall()
 
         # Top work types per group
@@ -146,10 +160,12 @@ def get_weekly_group_report() -> list[dict]:
             SELECT platform, group_name, work_type, COUNT(*) as cnt
             FROM seen_posts
             WHERE seen_at >= ? AND work_type IS NOT NULL AND score >= 8
+              AND group_name IS NOT NULL
+              AND group_name NOT IN (?, ?, ?)
             GROUP BY platform, group_name, work_type
             ORDER BY cnt DESC
             """,
-            (cutoff,)
+            (cutoff, *EXCLUDED_GROUPS)
         ).fetchall()
     finally:
         conn.close()
@@ -190,7 +206,7 @@ def format_weekly_report() -> str:
     start = (now - timedelta(days=7)).strftime("%b %d")
     end   = now.strftime("%b %d")
 
-    lines = [f"Weekly Report — {start} to {end}\n"]
+    lines = [f"Weekly Report | {start} to {end}\n"]
 
     # Group by platform
     for platform in ["facebook", "nextdoor"]:
