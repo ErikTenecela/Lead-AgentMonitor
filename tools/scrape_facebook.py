@@ -217,11 +217,17 @@ def scrape_group(page, group: dict) -> list[dict]:
 
 
 def fetch_posts() -> list[dict]:
-    """Discover joined groups then scrape each for recent posts."""
+    """Scrape configured groups for recent posts."""
     if not SESSION_PATH.exists():
         print(f"[facebook] No session found at {SESSION_PATH}. Run with --login first.")
         return []
 
+    groups = _load_groups()
+    if not groups:
+        print("[facebook] No groups configured in facebook_groups.json")
+        return []
+
+    print(f"[facebook] Scraping {len(groups)} configured group(s)")
     all_posts = []
 
     with sync_playwright() as p:
@@ -235,14 +241,7 @@ def fetch_posts() -> list[dict]:
         page = browser.new_page()
         page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
 
-        # Step 1: discover which groups the account has joined
-        groups = discover_joined_groups(page)
-        if not groups:
-            print("[facebook] No joined groups found — may need to re-login")
-            browser.close()
-            return []
-
-        # Step 2: scrape each group
+        # Scrape each configured group
         for group in groups:
             try:
                 _ = page.url  # check browser still open
