@@ -27,13 +27,12 @@ import classify_post as classifier
 import send_sms
 import scrape_facebook
 import scrape_nextdoor
-import scrape_gmail
 import dedup_checker
 import lead_enricher
 import digest_formatter
+import analytics
 
 SCORE_THRESHOLD = int(os.getenv("SCORE_THRESHOLD", "8"))
-POLL_INTERVAL   = 120  # 2 minutes in seconds
 CT_TZ           = ZoneInfo("America/New_York")
 BUSINESS_START  = dt_time(7, 0)
 BUSINESS_END    = dt_time(20, 0)
@@ -321,20 +320,44 @@ def send_morning_digest():
 if __name__ == "__main__":
     loop_mode     = "--loop" in sys.argv
     last_digest   = None
+    last_weekly   = None
+    cycles_in_pattern = 0
+    max_cycles_in_pattern = 0
 
     if loop_mode:
         print("[orchestrator] Running in loop mode (Ctrl+C to stop)")
         while True:
             try:
-                # Send morning digest once per day at 7am
                 now_ct = datetime.now(CT_TZ)
+
+                # Send morning digest once per day at 7am
                 if now_ct.hour == 7 and (last_digest is None or last_digest.date() < now_ct.date()):
                     send_morning_digest()
                     last_digest = now_ct
 
+                # Send weekly report every Monday at 7am
+                if now_ct.weekday() == 0 and now_ct.hour == 7 and (
+                    last_weekly is None or last_weekly.date() < now_ct.date()
+                ):
+                    analytics.send_weekly_report()
+                    last_weekly = now_ct
+
                 run_cycle()
-                print(f"[orchestrator] Sleeping {POLL_INTERVAL}s until next cycle...")
-                time.sleep(POLL_INTERVAL)
+
+                # Adaptive timing — switch pattern after N cycles to break rhythm
+                if cycles_in_pattern >= max_cycles_in_pattern:
+                    pattern, sleep_secs = analytics.get_timing_mode(now_ct.hour)
+                    _, _, min_cyc, max_cyc = analytics.TIMING_PATTERNS[pattern]
+                    max_cycles_in_pattern = __import__('random').randint(min_cyc, max_cyc)
+                    cycles_in_pattern = 0
+                    print(f"[orchestrator] Pattern: {pattern} | Sleeping {sleep_secs}s ({max_cycles_in_pattern} cycles)")
+                else:
+                    # Stay in current pattern, pick a new sleep within same range
+                    pattern, sleep_secs = analytics.get_timing_mode(now_ct.hour)
+                    cycles_in_pattern += 1
+
+                time.sleep(sleep_secs)
+
             except KeyboardInterrupt:
                 print("\n[orchestrator] Stopped.")
                 break
