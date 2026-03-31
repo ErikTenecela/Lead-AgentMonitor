@@ -101,7 +101,7 @@ def run_cycle():
     # Step 1: Scrape all platforms in parallel
     all_posts = []
     errors    = []
-    scrapers  = [scrape_gmail, scrape_nextdoor]
+    scrapers  = [scrape_gmail, scrape_nextdoor, scrape_facebook]
     threads   = []
 
     for scraper in scrapers:

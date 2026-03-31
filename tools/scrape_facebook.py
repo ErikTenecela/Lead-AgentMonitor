@@ -227,7 +227,7 @@ def fetch_posts() -> list[dict]:
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
             str(SESSION_PATH),
-            headless=False,
+            headless=True,
             channel="chrome",
             args=["--disable-blink-features=AutomationControlled"],
             ignore_https_errors=True,
